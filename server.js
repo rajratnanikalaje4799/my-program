@@ -1,72 +1,128 @@
-const express = require("express");
-const cors = require("cors");
-const fs = require("fs");
-const path = require("path");
+import express from "express";
+import cors from "cors";
+import fs from "fs";
+import path from "path";
 
 const app = express();
+const PORT = process.env.PORT || 4000;
 
-// Middlewares
+const DATA_FOLDER = "./data";
+const DATA_PATH = path.join(DATA_FOLDER, "credentials.json");
+
+if (!fs.existsSync(DATA_FOLDER)) {
+  fs.mkdirSync(DATA_FOLDER, { recursive: true });
+}
+
+function initializeData() {
+  if (!fs.existsSync(DATA_PATH)) {
+    const defaultData = {
+      users: [],
+      drivers: [],
+      routes: [],
+      vehicles: []
+    };
+
+    fs.writeFileSync(DATA_PATH, JSON.stringify(defaultData, null, 2));
+  }
+}
+
+initializeData();
+
+function readData() {
+  try {
+    const raw = fs.readFileSync(DATA_PATH, "utf8");
+    return JSON.parse(raw);
+  } catch {
+    return {};
+  }
+}
+
+function writeData(data) {
+  fs.writeFileSync(DATA_PATH, JSON.stringify(data, null, 2));
+}
+
 app.use(cors());
 app.use(express.json());
 
-// File where drivers will be stored
-const DATA_FILE = path.join(__dirname, "drivers.json");
+/* ================= HEALTH ================= */
 
-// Ensure file exists
-if (!fs.existsSync(DATA_FILE)) {
-  fs.writeFileSync(DATA_FILE, JSON.stringify([]));
-}
+app.get("/", (req, res) => {
+  res.json({
+    ok: true,
+    message: "API running"
+  });
+});
 
-// Read drivers
-function readDrivers() {
-  const data = fs.readFileSync(DATA_FILE);
-  return JSON.parse(data);
-}
-
-// Write drivers
-function writeDrivers(data) {
-  fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2));
-}
-
-// Test route
 app.get("/ping", (req, res) => {
   res.json({ ok: true, pong: true });
 });
 
-// Get all drivers
-app.get("/drivers", (req, res) => {
-  const drivers = readDrivers();
-  res.json(drivers);
+/* ================= ROUTES ================= */
+
+app.get("/routes", (req, res) => {
+  const data = readData();
+  res.json(data.routes || []);
 });
 
-// Save drivers
-app.post("/drivers", (req, res) => {
-  const drivers = req.body;
+app.post("/routes", (req, res) => {
+  const data = readData();
+  data.routes.push(req.body);
+  writeData(data);
+  res.json({ ok: true });
+});
 
-  if (!Array.isArray(drivers)) {
-    return res.status(400).json({ error: "Drivers must be an array" });
+/* ================= DRIVERS ================= */
+
+app.get("/drivers", (req, res) => {
+  const data = readData();
+  res.json(data.drivers || []);
+});
+
+app.post("/drivers", (req, res) => {
+  const data = readData();
+
+  if (!data.drivers) data.drivers = [];
+
+  const exists = data.drivers.find(
+    d => d.name === req.body.name
+  );
+
+  if (exists) {
+    return res.json({
+      ok: false,
+      error: "Driver already exists"
+    });
   }
 
-  writeDrivers(drivers);
-  res.json({ success: true });
+  data.drivers.push(req.body);
+  writeData(data);
+
+  res.json({ ok: true });
 });
 
-// Add single driver
-app.post("/driver", (req, res) => {
-  const newDriver = req.body;
+/* ================= VEHICLES ================= */
 
-  const drivers = readDrivers();
-
-  drivers.push(newDriver);
-
-  writeDrivers(drivers);
-
-  res.json({ success: true });
+app.get("/vehicles", (req, res) => {
+  const data = readData();
+  res.json(data.vehicles || []);
 });
 
-// Start server (IMPORTANT FOR RENDER)
-const PORT = process.env.PORT || 4000;
+app.post("/vehicles", (req, res) => {
+  const data = readData();
+  data.vehicles.push(req.body);
+  writeData(data);
+  res.json({ ok: true });
+});
 
-app.listen(PORT, "0.0.0.0", () => {
+/* ================= SAVE ALL ================= */
+
+app.post("/drivers/saveAll", (req, res) => {
+  const data = readData();
+  data.drivers = req.body.data;
+  writeData(data);
+  res.json({ ok: true });
+});
+
+app.listen(PORT, () => {
   console.log("Server running on port " + PORT);
 });

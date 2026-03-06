@@ -1,4 +1,8 @@
-const API_BASE_URL = 'http://10.57.254.99:4000';
+const API_BASE_URL =
+  window.location.hostname === 'localhost'
+    ? 'http://localhost:4000'
+    : 'https://my-program-api.onrender.com';
+
 const API_PREFIX = '/api';
 
 let serverConnected = false;
@@ -20,12 +24,15 @@ async function request<T>(path: string, method: HttpMethod = 'GET', body?: unkno
   }
 
   const contentType = response.headers.get('content-type') || '';
+
   if (contentType.includes('application/json')) {
     return (await response.json()) as T;
   }
 
   return undefined as T;
 }
+
+/* ================= SESSION ================= */
 
 export function getSessionUser(): string | null {
   return sessionStorage.getItem('depot_loggedInUser');
@@ -45,15 +52,13 @@ if (typeof window !== 'undefined') {
     if (!loggedInUser) return;
 
     navigator.sendBeacon(
-      `${API_BASE_URL}/logout`,
+      `${API_BASE_URL}/api/logout`,
       JSON.stringify({ username: loggedInUser }),
     );
   });
 }
 
-export async function getData(): Promise<unknown> {
-  return request<unknown>('/data');
-}
+/* ================= AUTH ================= */
 
 export async function login(
   username: string,
@@ -61,13 +66,15 @@ export async function login(
 ): Promise<{ ok: boolean; error?: string; user?: unknown }> {
   try {
     const result = await request<{ ok: boolean; error?: string; user?: unknown }>(
-      '/login',
+      `${API_PREFIX}/login`,
       'POST',
       { username, password },
     );
+
     if (result.ok) {
       setSessionUser(username);
     }
+
     return result;
   } catch {
     return { ok: false, error: 'Server connection failed' };
@@ -76,7 +83,7 @@ export async function login(
 
 export async function logout(): Promise<void> {
   try {
-    await request('/logout', 'POST');
+    await request(`${API_PREFIX}/logout`, 'POST');
   } finally {
     clearSession();
   }
@@ -84,24 +91,36 @@ export async function logout(): Promise<void> {
 
 export async function updatePassword(newPassword: string): Promise<{ ok: boolean }> {
   try {
-    return await request<{ ok: boolean }>('/updatePassword', 'POST', { password: newPassword });
+    return await request<{ ok: boolean }>(`${API_PREFIX}/updatePassword`, 'POST', {
+      password: newPassword,
+    });
   } catch {
     return { ok: false };
   }
 }
 
+/* ================= CONNECTION ================= */
+
 export async function checkServerConnection(): Promise<boolean> {
   try {
     const controller = new AbortController();
+
     const timeoutId = setTimeout(() => controller.abort(), 5000);
-    const response = await fetch(`${API_BASE_URL}/ping`, { signal: controller.signal });
+
+    const response = await fetch(`${API_BASE_URL}/ping`, {
+      signal: controller.signal,
+    });
+
     clearTimeout(timeoutId);
+
     serverConnected = response.ok;
     connectionChecked = true;
+
     return response.ok;
   } catch {
     serverConnected = false;
     connectionChecked = true;
+
     return false;
   }
 }
@@ -114,28 +133,47 @@ export function getServerStatus(): { connected: boolean; checked: boolean; url: 
   };
 }
 
+/* ================= CRUD FACTORY ================= */
+
 function createCrudAPI<T>(entity: string) {
   const base = `${API_PREFIX}/${entity}`;
+
   return {
     getAll: async (): Promise<T[]> => request<T[]>(base),
-    create: async (item: T): Promise<{ ok: boolean }> => request<{ ok: boolean }>(base, 'POST', item),
+
+    create: async (item: T): Promise<{ ok: boolean }> =>
+      request<{ ok: boolean }>(base, 'POST', item),
+
     update: async (id: string, item: T): Promise<{ ok: boolean }> =>
       request<{ ok: boolean }>(`${base}/${id}`, 'PUT', item),
-    delete: async (id: string): Promise<{ ok: boolean }> => request<{ ok: boolean }>(`${base}/${id}`, 'DELETE'),
+
+    delete: async (id: string): Promise<{ ok: boolean }> =>
+      request<{ ok: boolean }>(`${base}/${id}`, 'DELETE'),
   };
 }
+
+/* ================= MODULE APIs ================= */
 
 export const logsheetsAPI = createCrudAPI<unknown>('logsheets');
 export const routesAPI = createCrudAPI<unknown>('routes');
 export const driversAPI = createCrudAPI<unknown>('drivers');
 export const vehiclesAPI = createCrudAPI<unknown>('vehicles');
 export const breakdownsAPI = createCrudAPI<unknown>('breakdowns');
-
 export const usersAPI = createCrudAPI<unknown>('users');
+
+/* ================= BACKUP ================= */
 
 export const backupAPI = {
   export: () => request<unknown>(`${API_PREFIX}/backup/export`),
-  import: (data: unknown, options: { replaceExisting: boolean; importItems: Record<string, boolean> }) =>
-    request<{ ok: boolean }>(`${API_PREFIX}/backup/import`, 'POST', { data, options }),
+
+  import: (
+    data: unknown,
+    options: { replaceExisting: boolean; importItems: Record<string, boolean> },
+  ) =>
+    request<{ ok: boolean }>(`${API_PREFIX}/backup/import`, 'POST', {
+      data,
+      options,
+    }),
+
   clear: () => request<{ ok: boolean }>(`${API_PREFIX}/backup/clear`, 'POST'),
 };
