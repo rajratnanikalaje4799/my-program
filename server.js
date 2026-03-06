@@ -1,128 +1,125 @@
 import express from "express";
 import cors from "cors";
-import fs from "fs";
-import path from "path";
 
 const app = express();
 const PORT = process.env.PORT || 4000;
 
-const DATA_FOLDER = "./data";
-const DATA_PATH = path.join(DATA_FOLDER, "credentials.json");
-
-if (!fs.existsSync(DATA_FOLDER)) {
-  fs.mkdirSync(DATA_FOLDER, { recursive: true });
-}
-
-function initializeData() {
-  if (!fs.existsSync(DATA_PATH)) {
-    const defaultData = {
-      users: [],
-      drivers: [],
-      routes: [],
-      vehicles: []
-    };
-
-    fs.writeFileSync(DATA_PATH, JSON.stringify(defaultData, null, 2));
-  }
-}
-
-initializeData();
-
-function readData() {
-  try {
-    const raw = fs.readFileSync(DATA_PATH, "utf8");
-    return JSON.parse(raw);
-  } catch {
-    return {};
-  }
-}
-
-function writeData(data) {
-  fs.writeFileSync(DATA_PATH, JSON.stringify(data, null, 2));
-}
-
 app.use(cors());
 app.use(express.json());
 
-/* ================= HEALTH ================= */
-
-app.get("/", (req, res) => {
-  res.json({
-    ok: true,
-    message: "API running"
-  });
-});
+/* ---------------- PING ---------------- */
 
 app.get("/ping", (req, res) => {
   res.json({ ok: true, pong: true });
 });
 
-/* ================= ROUTES ================= */
+/* ---------------- STORAGE ---------------- */
 
-app.get("/routes", (req, res) => {
-  const data = readData();
-  res.json(data.routes || []);
+let drivers = [];
+let routes = [];
+let vehicles = [];
+let breakdowns = [];
+let logsheets = [];
+
+/* ---------------- DRIVERS ---------------- */
+
+app.get("/api/drivers", (req, res) => {
+  res.json(drivers);
 });
 
-app.post("/routes", (req, res) => {
-  const data = readData();
-  data.routes.push(req.body);
-  writeData(data);
+app.post("/api/drivers", (req, res) => {
+  drivers.push(req.body);
   res.json({ ok: true });
 });
 
-/* ================= DRIVERS ================= */
-
-app.get("/drivers", (req, res) => {
-  const data = readData();
-  res.json(data.drivers || []);
-});
-
-app.post("/drivers", (req, res) => {
-  const data = readData();
-
-  if (!data.drivers) data.drivers = [];
-
-  const exists = data.drivers.find(
-    d => d.name === req.body.name
-  );
-
-  if (exists) {
-    return res.json({
-      ok: false,
-      error: "Driver already exists"
-    });
-  }
-
-  data.drivers.push(req.body);
-  writeData(data);
-
+app.put("/api/drivers/:id", (req, res) => {
+  const id = req.params.id;
+  drivers = drivers.map((d) => (d.id === id ? req.body : d));
   res.json({ ok: true });
 });
 
-/* ================= VEHICLES ================= */
-
-app.get("/vehicles", (req, res) => {
-  const data = readData();
-  res.json(data.vehicles || []);
-});
-
-app.post("/vehicles", (req, res) => {
-  const data = readData();
-  data.vehicles.push(req.body);
-  writeData(data);
+app.delete("/api/drivers/:id", (req, res) => {
+  const id = req.params.id;
+  drivers = drivers.filter((d) => d.id !== id);
   res.json({ ok: true });
 });
 
-/* ================= SAVE ALL ================= */
+/* ---------------- ROUTES ---------------- */
 
-app.post("/drivers/saveAll", (req, res) => {
-  const data = readData();
-  data.drivers = req.body.data;
-  writeData(data);
+app.get("/api/routes", (req, res) => {
+  res.json(routes);
+});
+
+app.post("/api/routes", (req, res) => {
+  routes.push(req.body);
   res.json({ ok: true });
 });
+
+app.put("/api/routes/:id", (req, res) => {
+  const id = req.params.id;
+  routes = routes.map((r) => (r.id === id ? req.body : r));
+  res.json({ ok: true });
+});
+
+app.delete("/api/routes/:id", (req, res) => {
+  const id = req.params.id;
+  routes = routes.filter((r) => r.id !== id);
+  res.json({ ok: true });
+});
+
+/* ---------------- VEHICLES ---------------- */
+
+app.get("/api/vehicles", (req, res) => {
+  res.json(vehicles);
+});
+
+app.post("/api/vehicles", (req, res) => {
+  vehicles.push(req.body);
+  res.json({ ok: true });
+});
+
+app.put("/api/vehicles/:id", (req, res) => {
+  const id = req.params.id;
+  vehicles = vehicles.map((v) => (v.id === id ? req.body : v));
+  res.json({ ok: true });
+});
+
+app.delete("/api/vehicles/:id", (req, res) => {
+  const id = req.params.id;
+  vehicles = vehicles.filter((v) => v.id !== id);
+  res.json({ ok: true });
+});
+
+/* ---------------- BREAKDOWNS ---------------- */
+
+app.get("/api/breakdowns", (req, res) => {
+  res.json(breakdowns);
+});
+
+app.post("/api/breakdowns", (req, res) => {
+  breakdowns.push(req.body);
+  res.json({ ok: true });
+});
+
+app.delete("/api/breakdowns/:id", (req, res) => {
+  const id = req.params.id;
+  breakdowns = breakdowns.filter((b) => b.id !== id);
+  res.json({ ok: true });
+});
+
+/* ---------------- LOGSHEETS ---------------- */
+
+app.get("/api/logsheets", (req, res) => {
+  res.json(logsheets);
+});
+
+app.post("/api/logsheets", (req, res) => {
+  logsheets.push(req.body);
+  res.json({ ok: true });
+});
+
+/* ---------------- START SERVER ---------------- */
 
 app.listen(PORT, () => {
-  console.log("Server running on port " + PORT);
+  console.log("Server running on port", PORT);
 });
