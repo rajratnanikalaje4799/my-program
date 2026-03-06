@@ -1,3 +1,4 @@
+// server.js — ES module version
 import express from "express";
 import cors from "cors";
 
@@ -7,119 +8,89 @@ const PORT = process.env.PORT || 4000;
 app.use(cors());
 app.use(express.json());
 
-/* ---------------- PING ---------------- */
+/* ---------------- health check ---------------- */
 
 app.get("/ping", (req, res) => {
   res.json({ ok: true, pong: true });
 });
 
-/* ---------------- STORAGE ---------------- */
+/* ---------------- in‑memory storage ---------------- */
 
 let drivers = [];
 let routes = [];
 let vehicles = [];
 let breakdowns = [];
 let logsheets = [];
+let users = [];
 
-/* ---------------- DRIVERS ---------------- */
+/* ---------------- generic CRUD creator ---------------- */
 
-app.get("/api/drivers", (req, res) => {
-  res.json(drivers);
+function createCRUD(path, storage) {
+  // list all
+  app.get(`/api/${path}`, (req, res) => {
+    res.json(storage);
+  });
+
+  // create new
+  app.post(`/api/${path}`, (req, res) => {
+    const item = { id: Date.now().toString(), ...req.body };
+    storage.push(item);
+    res.json({ ok: true, item });
+  });
+
+  // update existing
+  app.put(`/api/${path}/:id`, (req, res) => {
+    const index = storage.findIndex(x => x.id === req.params.id);
+    if (index === -1) return res.status(404).json({ ok: false });
+    storage[index] = { ...storage[index], ...req.body };
+    res.json({ ok: true });
+  });
+
+  // delete
+  app.delete(`/api/${path}/:id`, (req, res) => {
+    const index = storage.findIndex(x => x.id === req.params.id);
+    if (index === -1) return res.status(404).json({ ok: false });
+    storage.splice(index, 1);
+    res.json({ ok: true });
+  });
+}
+
+/* ---------------- create APIs ---------------- */
+
+createCRUD("drivers", drivers);
+createCRUD("routes", routes);
+createCRUD("vehicles", vehicles);
+createCRUD("breakdowns", breakdowns);
+createCRUD("logsheets", logsheets);
+createCRUD("users", users);
+
+/* ---------------- login/logout/password ---------------- */
+
+app.post("/login", (req, res) => {
+  const { username, password } = req.body;
+  if (username && password) {
+    res.json({ ok: true, user: { username } });
+  } else {
+    res.json({ ok: false, error: "Invalid login" });
+  }
 });
 
-app.post("/api/drivers", (req, res) => {
-  drivers.push(req.body);
+app.post("/logout", (req, res) => {
   res.json({ ok: true });
 });
 
-app.put("/api/drivers/:id", (req, res) => {
-  const id = req.params.id;
-  drivers = drivers.map((d) => (d.id === id ? req.body : d));
+app.post("/updatePassword", (req, res) => {
   res.json({ ok: true });
 });
 
-app.delete("/api/drivers/:id", (req, res) => {
-  const id = req.params.id;
-  drivers = drivers.filter((d) => d.id !== id);
-  res.json({ ok: true });
+/* ---------------- root route ---------------- */
+
+app.get("/", (req, res) => {
+  res.send("API running successfully");
 });
 
-/* ---------------- ROUTES ---------------- */
-
-app.get("/api/routes", (req, res) => {
-  res.json(routes);
-});
-
-app.post("/api/routes", (req, res) => {
-  routes.push(req.body);
-  res.json({ ok: true });
-});
-
-app.put("/api/routes/:id", (req, res) => {
-  const id = req.params.id;
-  routes = routes.map((r) => (r.id === id ? req.body : r));
-  res.json({ ok: true });
-});
-
-app.delete("/api/routes/:id", (req, res) => {
-  const id = req.params.id;
-  routes = routes.filter((r) => r.id !== id);
-  res.json({ ok: true });
-});
-
-/* ---------------- VEHICLES ---------------- */
-
-app.get("/api/vehicles", (req, res) => {
-  res.json(vehicles);
-});
-
-app.post("/api/vehicles", (req, res) => {
-  vehicles.push(req.body);
-  res.json({ ok: true });
-});
-
-app.put("/api/vehicles/:id", (req, res) => {
-  const id = req.params.id;
-  vehicles = vehicles.map((v) => (v.id === id ? req.body : v));
-  res.json({ ok: true });
-});
-
-app.delete("/api/vehicles/:id", (req, res) => {
-  const id = req.params.id;
-  vehicles = vehicles.filter((v) => v.id !== id);
-  res.json({ ok: true });
-});
-
-/* ---------------- BREAKDOWNS ---------------- */
-
-app.get("/api/breakdowns", (req, res) => {
-  res.json(breakdowns);
-});
-
-app.post("/api/breakdowns", (req, res) => {
-  breakdowns.push(req.body);
-  res.json({ ok: true });
-});
-
-app.delete("/api/breakdowns/:id", (req, res) => {
-  const id = req.params.id;
-  breakdowns = breakdowns.filter((b) => b.id !== id);
-  res.json({ ok: true });
-});
-
-/* ---------------- LOGSHEETS ---------------- */
-
-app.get("/api/logsheets", (req, res) => {
-  res.json(logsheets);
-});
-
-app.post("/api/logsheets", (req, res) => {
-  logsheets.push(req.body);
-  res.json({ ok: true });
-});
-
-/* ---------------- START SERVER ---------------- */
+/* ---------------- start server ---------------- */
 
 app.listen(PORT, () => {
-  console.log("Server running on port", PORT);
+  console.log(`Server running on port ${PORT}`);
 });
